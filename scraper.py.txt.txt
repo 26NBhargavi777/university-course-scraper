@@ -1,0 +1,100 @@
+import requests
+from bs4 import BeautifulSoup
+import pandas as pd
+import uuid
+
+# ---------------------------
+# Helper function
+# ---------------------------
+def clean_text(text):
+    if text:
+        return text.strip().replace("\n", " ")
+    return "Not Available"
+
+
+# ---------------------------
+# Universities List
+# ---------------------------
+universities = [
+    {
+        "name": "University of Oxford",
+        "country": "United Kingdom",
+        "city": "Oxford",
+        "website": "https://www.ox.ac.uk/admissions/undergraduate/courses-listing"
+    },
+    {
+        "name": "University of Toronto",
+        "country": "Canada",
+        "city": "Toronto",
+        "website": "https://future.utoronto.ca/academics/programs-directory/"
+    }
+]
+
+university_data = []
+course_data = []
+
+# ---------------------------
+# Scraping Process
+# ---------------------------
+for uni_index, uni in enumerate(universities, start=1):
+    university_id = f"U{str(uni_index).zfill(3)}"
+
+    university_data.append({
+        "university_id": university_id,
+        "university_name": uni["name"],
+        "country": uni["country"],
+        "city": uni["city"],
+        "website": uni["website"]
+    })
+
+    try:
+        response = requests.get(uni["website"])
+        soup = BeautifulSoup(response.text, "html.parser")
+
+        # Example scraping logic (collect course titles from links)
+        courses = soup.find_all("a")
+
+        course_count = 0
+
+        for course in courses:
+            title = clean_text(course.get_text())
+
+            # Filter meaningful course names
+            if len(title) > 15 and course_count < 5:
+                course_id = f"C{str(uuid.uuid4())[:6]}"
+
+                course_data.append({
+                    "course_id": course_id,
+                    "university_id": university_id,
+                    "course_name": title,
+                    "level": "Not Available",
+                    "discipline": "Not Available",
+                    "duration": "Not Available",
+                    "fees": "Not Available",
+                    "eligibility": "Not Available"
+                })
+
+                course_count += 1
+
+    except Exception as e:
+        print(f"Error scraping {uni['name']}: {e}")
+
+
+# ---------------------------
+# Convert to DataFrame
+# ---------------------------
+df_universities = pd.DataFrame(university_data)
+df_courses = pd.DataFrame(course_data)
+
+# Remove duplicates
+df_universities.drop_duplicates(inplace=True)
+df_courses.drop_duplicates(inplace=True)
+
+# ---------------------------
+# Export to Excel
+# ---------------------------
+with pd.ExcelWriter("University_Course_Data.xlsx", engine="openpyxl") as writer:
+    df_universities.to_excel(writer, sheet_name="Universities", index=False)
+    df_courses.to_excel(writer, sheet_name="Courses", index=False)
+
+print("Excel file generated successfully!")
